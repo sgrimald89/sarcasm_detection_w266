@@ -14,22 +14,23 @@ def verify_sarcastic(text):
 r = 0
 sarcastic_text = []
 not_sarcastic_text = []
-
+sarcastic_count = 0
+non_sarcastic_count = 0
 for line in sys.stdin:
+      
         if r > 0:
-                row = line.strip().split(",")
+                row = line.strip().split("|")
                 length_row = len(row)
-                if length_row <5:
-                    continue
-                if row[length_row - 1] == "False":
-                    not_sarcastic_text.append(clean_text(row[4]))
-                elif row[length_row - 1] == "True":
-                    if verify_sarcastic(row[4]):
-                        sarcastic_text.append(clean_text(row[4]))
+                if row[length_row - 1] == "0":
+                    non_sarcastic_count += 1
+                    not_sarcastic_text.append(clean_text(row[2]))
+                elif row[length_row - 1] == "1":
+                    if verify_sarcastic(row[2]):
+                        sarcastic_count+=1
+                        sarcastic_text.append(clean_text(row[2]))
         r+=1
-
+print(sarcastic_count)
 non_sarcastic_examples = choice(not_sarcastic_text, len(sarcastic_text), False)
-
 for non_sarcastic_tweet in non_sarcastic_examples:
     print(non_sarcastic_tweet+"|"+str(0))
    # pass
