@@ -66,7 +66,7 @@ We rely on data scraped through Twitter to build our models, using the \#sarcasm
 
 \section{Background}
 
-Historical experiments in this space have sourced data from social media channels like twitter, utilizing hashtags for labeling sarcasm (e.g. \#sarcasm, \#sarcastic, \#not) as seen in the paper by Bamman and Smith. In the Bamman paper, logistic regression is used for classification by training the model with a combination of tweet, author and environmental features[2].  In a paper by Amir et al[3] they use user embeddings to help provide contextual features for their model.  Moreover, there have been more advanced approaches to detecting sarcasm by way of using CNNs + LSTM + DNN as seen in Ghosh and Veale[4].  Additionally some semi-supervised approaches are also used as done by Davidov et al[1].
+Historical experiments in this space have sourced data from social media channels like twitter, utilizing hashtags for labeling sarcasm (e.g. \#sarcasm, \#sarcastic, \#not) as seen in the paper by Bamman and Smith. In the Bamman paper, logistic regression is used for classification by training the model with a combination of tweet, author and environmental features[2].  In a paper by Amir et al[3] they use user embeddings to help provide contextual features for their model.  Moreover, there have been more advanced approaches to detecting sarcasm by way of using CNNs + LSTM + DNN as seen in Ghosh and Veale[4].  Additionally some semi-supervised approaches are also used as done by Davidov et al[1]. We compare the performances of these models against ours in the results section.
 
 \section{Methods}
 Our objective is to predict whether a message is sarcastic or not. To measure the effectiveness of our methodology, we will be using the  F1-score , in a similar way as the authors discussed in the background section. 
@@ -98,13 +98,13 @@ Below is a histogram of token count per tweet.
 
 \includegraphics[width=75mm,scale=0.5]{tokenhistogram.png}
 
-We can see above that, generally speaking we can contain the full content of a tweet distilled into a set of 40 tokens (97\% of tweets contained less than 40 tokens), but to be conservative we assumed a tweet length of 75 tokens. This allowed us to pad our tweets with a "<PADDING>" token to ensure consistent tweet length. Tweets longer than 75 tokens were truncated.
+We can see above that, generally speaking we can contain the full content of a tweet distilled into a set of 40 tokens (97\% of tweets contained less than 40 tokens), but to be conservative we assumed a tweet length of 40 tokens. For the CNN model, this allowed us to pad our tweets with a "PADDING" token to ensure consistent tweet length. Tweets longer than 40 tokens were truncated.
 
 \subsection{Defining our Vocabulary}
 
-To define our vocabulary we took two main approaches. The key difference in the approach was the treatment of hashtags. In one version, hashtags were tokenized as separate tokens. This allows us to capture additional context that may not be available in using only the prior tweet. To confirm that this methodology helped improve accuracy of our model, we also mapped all hashtags to a single token, which we named "<HASHTAG>". 
+To define our vocabulary we took two main approaches. The key difference in the approach was the treatment of hashtags. In one version, hashtags were tokenized as separate tokens. This allows us to capture additional context that may not be available in using only the prior tweet. To confirm that this methodology helped improve accuracy of our model, we also mapped all hashtags to a single token, which we named "HASHTAG". 
 
-Under both methodologies, we tokenized all URLs as "<LINK>" tokens, retweet tags (including username attached to that retweet as "retweet", all remaining usernames as "<USERNAMES>", and finally each digit in a number as DG. 
+Under both methodologies, we tokenized all URLs as "LINK" tokens, retweet tags (including username attached to that retweet as "retweet", all remaining usernames as "USERNAMES", and finally each digit in a number as DG. 
 
 We tuned the vocabulary length using the CNN model to decide on optimal vocabulary size. To that end, we relied on a vocabulary of only 2,500 words. This is likely driven by the relatively small size of the dataset we built. With a larger dataset, we'll likely be able to improve the accuracy of our models with a larger vocabulary as we will be less likely to run into overfitting issues.
 
@@ -112,13 +112,38 @@ We tuned the vocabulary length using the CNN model to decide on optimal vocabula
 A baseline model was built using a word count based multinomial Naive Bayes bag of words model with Laplace smoothing. The bag of words used was defined using the methodology described above. 
 
 \subsection{Bi Convolutional Neural Network Model}
-The proposed model will include an embedding layer where our model will attempt to build embeddings at a token level.The goal is to embed the sarcastic nature of each token. Further work and research will need to be done to properly implement this model. Using the validation set, we will focus on incorrectly detected tweets to understand what phenomena tend to cause our algorithm to falter. Because we are relying on messages to be tagged as sarcastic through hashtags, we expect our algorithms main issue will be due to incorrectly labeled examples.  
 
-\section{Results and Discussion of Errors}
+A model was implemented that uses an architecture proposed by Yin et. al [5]. The model is as follows. Two separate CNN processes are run where one processes the context sentence and the other processes the tweet of interest. An embedding layer generates an embedding vector for each token in our vocabulary. This embedding layer is shared between the two CNN processes. We opted against pre-trained word vectors as we wanted to capture the dynamic nature of twitter tweets as well as generate word vectors for hashtags and emojis. 
+
+Each set of word vectors is then concatenated together and is then passed through the convolutional layer. By padding our tweets, we effectively have what is a variation of the wide variation. This variation generates an embedding for the "PADDING" token instead of a 0 embedding. The convolution layer also allows for the sharing of the convolution weights across the two processes. A tanh activation function of the form tanh(W*c + b)  where c is the concatenated word vectors, W is the convolution weights, and b the bias is used. Similar to Yin et. al, we use an average pooling layer that results in a tweet embedding vector of the same size as the word embedding vectors. The two resulting tweet vectors are concatenated together, and a logistic regression output layer is applied to the concatenated word vectors.
+
+A diagram describing this procedure is below.
+
+\includegraphics[width=75mm,scale=0.5]{bcnn.png}
 
 
+\section{Results and Error Analysis}
 
-We will include a comparison of our techniques as well as that of the authors mentioned in the background section.
+A comparison of the different models we built as well as the best models proposed by the authors discussed in the background research section can be seen below.
+
+\includegraphics[width=75mm,scale=0.5]{results.png}
+
+Our Naive Bayes algorithm outperformed our Bi CNN model as well as most of the works presented by the authors described.
+
+To check for common errors, we looked at the top 5 tweets that our model got most wrong. The method for this was simple. For the CNN model we looked at the difference in the logits and ranked each tweet this way, while for the Naive Bayes model we used the differences int he log probabilities. 
+
+Common errors existed within all 4 of the models we built. One common tweet that was incorrectly tagged as sarcastic is "what is with that? theyre only going to blame the guns now? no people? at all? oh yeah they will blame trump. there is no agenda though..."
+
+This tweet manifests a fundamental problem with our tagging of sarcastic tweets. The message does seem to be sarcastic, especially the last two sentences in the tweet. This is an example of a tweet that our model tagged correctly, was incorrectly classified as an error due to issues with our methodology for finding sarcastic tweets. 
+
+Our models which mapped all hashtags to a single "HASHTAG" token resulted in being overconfident in tweets where a large number of tweets were present in the tweet, an issue we attempted to remedy by mapping each hashtag to its own token, but due to the smaller vocabulary we relied on due to the limitations resulting from the size of our data, our model continued being overconfident with tweets made up of mostly hashtags. Still, this increased our accuracy and f1-score considerably at the cost of precision.
+
+It's unsurprising that our Naive Bayes models outperformed our BiCNN models. Our data set was relatively small, and we relied on relatively small word embedding sizes. Furthermore, the Naive Bayes algorithm is able to simply identify the hashtags that were used to generate the negative samples. Still the model continued to perform extremely well on the test set even without keeping the hashtags as their own separate token. However, we believe that this is likely driven by the fact that our models might simply be picking up words idiosyncratic to these hashtags.
+
+
+\section{Conclusion}
+
+
 
 \textbf{References}
 
