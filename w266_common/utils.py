@@ -108,6 +108,7 @@ def canonicalize_word(word, wordset=None, digits=True, links=True, username=True
     if hashtags:
         word = canonicalize_hashtag(word)
     if (wordset == None) or (word in wordset):
+        word = re.sub("##", "#", word)
         return word
     else:
         return constants.UNK_TOKEN

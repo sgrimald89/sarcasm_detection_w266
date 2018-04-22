@@ -6,9 +6,11 @@ import numpy as np
 
 def clean_text(text):
     #remove delimiters, newlines, quotes, and sarcasm hashtags
-    text = re.sub(r"(\||\'|\"|\n|#sarcasm|#sarcastic)"," ", text,flags=re.IGNORECASE)
+    text = re.sub(r"(\||\'|\"|\n|#sarcasm|#sarcastic)","", text,flags=re.IGNORECASE)
     # removes the word sarcas and sarcastic
-    text = re.sub(r"(sarcasm|sarcastic)"," ", text,flags=re.IGNORECASE)
+    text = re.sub(r"(sarcasm|sarcastic)","", text,flags=re.IGNORECASE)
+    text = re.sub(r"##", "#",  text,flags=re.IGNORECASE)
+    text = re.sub(r"  ", " ",  text,flags=re.IGNORECASE)
     return text
 
 def verify_sarcastic(text):
