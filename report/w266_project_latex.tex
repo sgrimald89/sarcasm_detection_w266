@@ -106,10 +106,12 @@ To define our vocabulary we took two main approaches. The key difference in the 
 
 Under both methodologies, we tokenized all URLs as "LINK" tokens, retweet tags (including username attached to that retweet as "retweet", all remaining usernames as "USERNAMES", and finally each digit in a number as DG. 
 
-We tuned the vocabulary length using the CNN model to decide on optimal vocabulary size. To that end, we relied on a vocabulary of only 2,500 words. This is likely driven by the relatively small size of the dataset we built. With a larger dataset, we'll likely be able to improve the accuracy of our models with a larger vocabulary as we will be less likely to run into overfitting issues.
+We tuned the vocabulary length using the CNN model to decide on optimal vocabulary size. To that end, we relied on a vocabulary of only 5,000 words. This is likely driven by the relatively small size of the dataset we built. With a larger dataset, we'll likely be able to improve the accuracy of our models with a larger vocabulary as we will be less likely to run into overfitting issues.
 
 \subsection{Baseline}
 A baseline model was built using a word count based multinomial Naive Bayes bag of words model with Laplace smoothing. The bag of words used was defined using the methodology described above. 
+
+The multinomial Naive Bayes model uses an alpha of 0.1, meaning that we add a count of 0.1 to each word to ensure that we do not predict 0 probability for infrequently observed words. A series of alphas was tested using cross-validation but 0.1 proved to be optimal for our data set.
 
 \subsection{Bi Convolutional Neural Network Model}
 
@@ -121,6 +123,8 @@ A diagram describing this procedure is below.
 
 \includegraphics[width=75mm,scale=0.5]{bcnn.png}
 
+
+The implementation of the algorithm that we rely on in this paper is using an embedding vector size of 60, a dropout keep probability of 40\%, a batch size of 50, using 40 epochs and no L2 regularization, which we determined using a series of cross validation tests.
 
 \section{Results and Error Analysis}
 
@@ -140,10 +144,29 @@ Our models which mapped all hashtags to a single "HASHTAG" token resulted in bei
 
 It's unsurprising that our Naive Bayes models outperformed our BiCNN models. Our data set was relatively small, and we relied on relatively small word embedding sizes. Furthermore, the Naive Bayes algorithm is able to simply identify the hashtags that were used to generate the negative samples. Still the model continued to perform extremely well on the test set even without keeping the hashtags as their own separate token. However, we believe that this is likely driven by the fact that our models might simply be picking up words idiosyncratic to these hashtags.
 
+\section{Additional Observations}
+
+Some interesting patterns emerged within our data. For instance, we uncovered certain emojis were tagged as heavily sarcastic. These emojis are below:
+
+\includegraphics[width=75mm,scale=0.5]{top_emoji.png}
+
+The emojis that were tagged as most sarcastic are not too surprising, which shows that the Naive Bayes model is picking on interesting linguistic phenomena.
+
+A few hashtags were also present in the positive examples, most had a humor theme, such as \#jokes, \#puns, \#funnyquotes, \#oneliner, \#snarky. 
 
 \section{Conclusion}
 
+We began by implementing a multinomial Naive Bayes model with laplace smoothing
 
+We've implemented Bi-CNN model, which encodes sarcasm using two separate sentences, the tweet that our tweet of interest is responding to as well as the tweet of interest itself. This allows us to forego the use of user embeddings while still building context, without a significant loss of accuracy.  
+
+Our data may have the potential for bias due to the sampling methodology, but we still uncovered interesting phenomena within hashtags and emojis.
+
+We're confident that with better sampling methodology and a much larger data set, this algorithm continue to improve on its ability to pick up on sarcastic cues. Adding the attention mechanism discussed by Yin et. al may lead to an even greater improvement than that.
+
+\section{Special Thanks}
+
+We'd like to give special thanks to Denny Britz for writing a very helpful guide on implementing a CNN in TensorFlow. We relied heavily on his code to build our BiCNN model. [6]
 
 \textbf{References}
 
@@ -157,5 +180,6 @@ It's unsurprising that our Naive Bayes models outperformed our BiCNN models. Our
 
 [5] https://arxiv.org/pdf/1512.05193v3.pdf
 
+[6] http://www.wildml.com/2015/12/implementing-a-cnn-for-text-classification-in-tensorflow/
 
 \end{document}
