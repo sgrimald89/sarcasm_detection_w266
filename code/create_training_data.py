@@ -50,8 +50,6 @@ for line in sys.stdin:
                         sarcastic_count+=1
                         sarcastic_text.append(row_to_add)
         r+=1
-print(len(sarcastic_text))
-print(len(not_sarcastic_text))
 sampled_rows = choice(len(not_sarcastic_text), len(sarcastic_text), False)
 for non_sarcastic_tweet in np.array(not_sarcastic_text)[sampled_rows]:
     print("|".join(non_sarcastic_tweet))
