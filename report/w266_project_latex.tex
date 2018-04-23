@@ -29,7 +29,7 @@
 
 \newcommand\BibTeX{B{\sc ib}\TeX}
 
-\title{Detecting Sarcasm Using Attention-Based Convolutional Neural Networks}
+\title{Detecting Sarcasm Using NLP Techniques}
 
 \author{Saul Grimaldo \\
   DATASCI W266\\
@@ -49,7 +49,10 @@
 \begin{abstract}
 Due to the increasing importance of NLP, it's important now more than ever to detect linguistic phenomena that can often be subtle but which ignoring may result in costly mistakes in critical business usages. This paper attempts to provide a practical way of detecting sarcasm, a subtle linguistic phenomenon that often completely changes the meaning of the language used. 
 
-We provide some background on models that are typically used for sarcasm detection which heavily rely on information that may be difficult to obtain for the typical business as well as some neural network based models that attempt to use only messages posted within the same general context. In our case, we focus on messages in a Twitter message thread. This algorithm will also generate word embeddings that with additional work may improve the ability to detect sarcasm without requiring the use of new models.
+We provide some background on models that are typically used for sarcasm detection which heavily rely on information that may be difficult to obtain for the typical business. We then provide a methodology using only the tweet to which a message is responding to to build context.
+
+A Naive Bayes model that does not use context is used to set a performance benchmark for the main model we will focus on: the Bi CNN model.
+
 \end{abstract}
 
 \section{Introduction}
@@ -73,14 +76,16 @@ Our objective is to predict whether a message is sarcastic or not. To measure th
 
 Two key techniques are used to detect whether a given tweet is sarcastic or not: the baseline model, which is a Naive Bayes model using a bag of words, and the Bi Convolutional Neural Network model,  which uses the message of interest, and the message which is being responded to as the main set of features.
 
-For the purpose of these experiments, a 60-30-10 training-validation-test split is performed on our data. 
+For the purpose of these experiments, a 70-20-10 training-validation-test split is performed on our data. 
 
 \subsection{Data}
 Similar to both the Ghosh \& Veale and the Bannam \& Smith papers, we utilize functionality provided by twitter to access twitter streams. Using the twitter streaming api for python, tweepy, we collect our positive and negative class examples, sarcastic and non-sarcastic respectively.  
 
-To collect positive examples of sarcasm we used self-declared labels of sarcasm with the following the \#sarcasm and \#sarcastic hashtags.  To collect negative examples of sarcasm we aimed to create sample that is representative of the Twitterspere population. Our negative hashtags were chosen by identifying the most active hashtags for the following categories:  gaming, sports, fun, science, non-profit, news, technology, music, politics, and lifestyle.  Across the 10 categories, we have included in 194 unique hashtags in the filter the stream to collect the negative class.  
+To collect positive examples of sarcasm we used self-declared labels of sarcasm with the following the \#sarcasm and \#sarcastic hashtags.  An initial attempt also used the hashtag \#not, however the vast majority of tweets in this hashtag were not sarcastic, so they were removed from our analysis to get a cleaner look at the data. To collect negative examples of sarcasm we aimed to create sample that is representative of the Twitterspere population. Our negative hashtags were chosen by identifying the most active hashtags for the following categories:  gaming, sports, fun, science, non-profit, news, technology, music, politics, and lifestyle.  Across the 10 categories, we have included 194 unique hashtags in the filter the stream to collect the negative class.  
 
 The tweet objects are received in JSON-like objects.  Features of the tweets that were of interest include user identification information, full text of the tweet including the hashtag labels, information connecting the tweet to any tweet (or status) and user that it is in reply to.  Lastly, additional attribute information to filter data set, such as language and geographical information. 
+
+Because of the context we'll be working on in this problem involves people sending out the same message through various accounts through retweets, we chose to not remove a retweeted message as we will have access to the history of retweets in the context in which we envision this algorithm to de deployed in.
 
 As sarcasm is a tricky classification and has inherent grounding issues, we sought to incorporate the previous tweet in the thread that our current data point is in response to.   Although, the objects obtained from twitter stream does have the user and status of the post it is in response to, it does not contain the previous status content itself.  Despite limitations of the api, we are able to use user\_id and status\_id to reconstruct url and scrape and parse the previous tweets. 
 
@@ -96,9 +101,19 @@ Examples of sarcastic comments include:
 
 Below is a histogram of token count per tweet.
 
-\includegraphics[width=75mm,scale=0.5]{tokenhistogram.png}
+\includegraphics[width=75mm,scale=0.5]{token_histogram.png}
 
-We can see above that, generally speaking we can contain the full content of a tweet distilled into a set of 40 tokens (97\% of tweets contained less than 40 tokens), but to be conservative we assumed a tweet length of 40 tokens. For the CNN model, this allowed us to pad our tweets with a "PADDING" token to ensure consistent tweet length. Tweets longer than 40 tokens were truncated.
+By comparing the distribution of tweet length for sarcastic and non-sarcastic tweets, we see that there is a right skew in the sarcastic distribution. The higher number of tweets with fewer tokens for the sarcastic class may be indicative of there being more meaning grounded in context being referenced to--as we might see in the distribution of sarcastic tweets with context below. The tweet length for non-sarcastic tweets is centered around 20 tokens and seem to be more normally distributed as we might expect from given that we use a large number of popular topic hashtags to represent the general population. We can see above that, generally speaking we can contain the full content of a tweet distilled into a set of 60 tokens (over 95\% of tweets contained less than60 tokens). For the CNN model, we assumed a length of 40 tokens, allowing us to pad short tweets and short context with a "PADDING" tokens to ensure consistent tweet length. Tweets longer than 40 tokens were truncated. This means that sarcastic tweets were more likely affected by this methodological decision.
+
+Next we reviewed the hashtag counts. 
+
+\includegraphics[width=75mm,scale=0.5]{hashtag_histogram.png}
+
+We see that for sarcastic tweets there is a right-skewed in the distribution of number of hashtags utilized/referenced in a given tweet. This means that for any sarcastic tweets, we expect the user will be less likely to utilize additional tweets to accompany the \#sarcasm and/or \#sarcastic hashtags . In the non-sarcastic distribution there is less of a skew in the distribution with a median value around 4 hashtags in a tweet. We can see that in general, non sarcastic tweets are more likely to include hashtags for words other than the ones we used to sample our data. 
+
+\includegraphics[width=75mm,scale=0.5]{context_proportion.png}
+
+The bar chart above shows that both for sarcastic and non-sarcastic tweet have a larger proportion of tweets that are not in response to a preceding tweet in a message thread.  However, when looking at the left group of bars showing those proportions of the each of the two classes of tweets that have context, we see that there is a much higher percentage of sarcastic tweets with context than non-sarcastic tweets.
 
 \subsection{Defining our Vocabulary}
 
@@ -106,7 +121,7 @@ To define our vocabulary we took two main approaches. The key difference in the 
 
 Under both methodologies, we tokenized all URLs as "LINK" tokens, retweet tags (including username attached to that retweet as "retweet", all remaining usernames as "USERNAMES", and finally each digit in a number as DG. 
 
-We tuned the vocabulary length using the CNN model to decide on optimal vocabulary size. To that end, we relied on a vocabulary of only 5,000 words. This is likely driven by the relatively small size of the dataset we built. With a larger dataset, we'll likely be able to improve the accuracy of our models with a larger vocabulary as we will be less likely to run into overfitting issues.
+We tuned the vocabulary length using the CNN model to decide on optimal vocabulary size. To that end, we found that a vocabulary of only 5,000 words was optimal. This is likely driven by the relatively small size of the dataset we built. With a larger dataset, we'll likely be able to improve the accuracy of our models with a larger vocabulary as we will be less likely to run into overfitting issues.
 
 \subsection{Baseline}
 A baseline model was built using a word count based multinomial Naive Bayes bag of words model with Laplace smoothing. The bag of words used was defined using the methodology described above. 
@@ -123,8 +138,7 @@ A diagram describing this procedure is below.
 
 \includegraphics[width=75mm,scale=0.5]{bcnn.png}
 
-
-The implementation of the algorithm that we rely on in this paper is using an embedding vector size of 60, a dropout keep probability of 40\%, a batch size of 50, using 40 epochs and no L2 regularization, which we determined using a series of cross validation tests.
+The implementation of the algorithm that we rely on in this paper is using an embedding vector size of 60, a dropout keep probability of 40\%, a batch size of 200, using 10 epochs and no L2 regularization, which we determined using a series of cross validation tests.
 
 \section{Results and Error Analysis}
 
@@ -134,15 +148,13 @@ A comparison of the different models we built as well as the best models propose
 
 Our Naive Bayes algorithm outperformed our Bi CNN model as well as most of the works presented by the authors described.
 
-To check for common errors, we looked at the top 5 tweets that our model got most wrong. The method for this was simple. For the CNN model we looked at the difference in the logits and ranked each tweet this way, while for the Naive Bayes model we used the differences int he log probabilities. 
+To check for common errors, we randomly sampled from the top  tweets that our model got wrong. The method for this was simple. For the CNN model we looked at the difference in the logits and ranked each tweet this way, while for the Naive Bayes model we used the differences int he log probabilities. 
 
-Common errors existed within all 4 of the models we built. One common tweet that was incorrectly tagged as sarcastic is "what is with that? theyre only going to blame the guns now? no people? at all? oh yeah they will blame trump. there is no agenda though..."
+One common error mostly present in all models is the classification of . It seemed to consider compliments as sarcastic. Likely, what this shows is that compliments in twitter are rare, and when a compliment is seemingly made of someone, it is sarcastic. 
 
-This tweet manifests a fundamental problem with our tagging of sarcastic tweets. The message does seem to be sarcastic, especially the last two sentences in the tweet. This is an example of a tweet that our model tagged correctly, was incorrectly classified as an error due to issues with our methodology for finding sarcastic tweets. 
+As described in our EDA section, non-sarcastic tweets were much more likely to heavily use hashtags. For this reason the models which mapped all hashtags to a single "HASHTAG" token were overconfident in tweets where a large number of hashtags were present in the tweet, an issue we attempted to remedy by mapping each hashtag to its own token. By giving each token its independent token, we were able to make our Naive Bayes model substantially less overconfident in tweets it got wrong while also becoming more accurate. Similar accuracy gains were achieved with the BCNN model when we tokenized hashtags independently, but the model had issues in being overconfident in tweets it classified incorrectly. In both cases the Naive Bayes model outperformed our BCNN model.
 
-Our models which mapped all hashtags to a single "HASHTAG" token resulted in being overconfident in tweets where a large number of tweets were present in the tweet, an issue we attempted to remedy by mapping each hashtag to its own token, but due to the smaller vocabulary we relied on due to the limitations resulting from the size of our data, our model continued being overconfident with tweets made up of mostly hashtags. Still, this increased our accuracy and f1-score considerably at the cost of precision.
-
-It's unsurprising that our Naive Bayes models outperformed our BiCNN models. Our data set was relatively small, and we relied on relatively small word embedding sizes. Furthermore, the Naive Bayes algorithm is able to simply identify the hashtags that were used to generate the negative samples. Still the model continued to perform extremely well on the test set even without keeping the hashtags as their own separate token. However, we believe that this is likely driven by the fact that our models might simply be picking up words idiosyncratic to these hashtags.
+It's unsurprising that our Naive Bayes models outperformed our BiCNN models. This is likely because our data set was relatively small, and we relied on relatively small word embedding sizes. Furthermore, the Naive Bayes algorithm is able to simply identify the hashtags that were used to generate the negative samples. Still the model continued to perform extremely well on the test set even without keeping the hashtags as their own separate token. However, we believe that this is likely driven by the fact that our models might simply be picking up words idiosyncratic to the hashtags we used to generate our negative examples, and thus may not be properly learning to distinguish what sarcasm is. That is, our algorithms may simply be learning words that describe the hashtags we used to generate our negative example data set. Still, a common problem within our models is the classification of hashtag heavy tweets. Without enough data, these hashtags are mapped to the "other" token bin where infrequently used words are mapped to. As a result, the issue of hashtags being weighted heavily toward non-sarcastic classifications persists.
 
 \section{Additional Observations}
 
@@ -150,19 +162,19 @@ Some interesting patterns emerged within our data. For instance, we uncovered ce
 
 \includegraphics[width=75mm,scale=0.5]{top_emoji.png}
 
-The emojis that were tagged as most sarcastic are not too surprising, which shows that the Naive Bayes model is picking on interesting linguistic phenomena.
+The emojis that were tagged as most sarcastic are not too surprising, which shows that the Naive Bayes model is picking on interesting linguistic phenomena. As described in the error analysis, the CNN model seems to be picking up on similar phenomena within emojis, because as we noted, one of the most overconfident errors that our CNN model was likely driven heavily by the use of one of these emoji.
 
-A few hashtags were also present in the positive examples, most had a humor theme, such as \#jokes, \#puns, \#funnyquotes, \#oneliner, \#snarky. 
+A few hashtags were also present in the positive examples, most had a humor theme, such as \#jokes, \#puns, \#funnyquotes, \#oneliner, \#snarky. This is to be expected. Likely, to dampen the impact of sarcasm, users would follow their message with a signal letting others know that their message was made in good fun.
 
 \section{Conclusion}
 
-We began by implementing a multinomial Naive Bayes model with laplace smoothing
+We began by implementing a multinomial Naive Bayes model with Laplace smoothing. This model resulted in surprisingly accurate predictions. 
 
-We've implemented Bi-CNN model, which encodes sarcasm using two separate sentences, the tweet that our tweet of interest is responding to as well as the tweet of interest itself. This allows us to forego the use of user embeddings while still building context, without a significant loss of accuracy.  
+We then implemented the  Bi-CNN model, which encodes sarcasm using two separate sentences, the tweet that our tweet of interest is responding to as well as the tweet of interest itself. This allows us to forego the use of user embeddings while still building context, without a significant loss of accuracy compared to the models described by other authors. Due to the size of the data used, this model did not perform as well as the Naive Bayes, but we're confident that more training data will tip the scales toward the Bi-CNN.  
 
-Our data may have the potential for bias due to the sampling methodology, but we still uncovered interesting phenomena within hashtags and emojis.
+One important caveat of our methodology is that our data is likely heavily overfitting to the context which we collected our non-sarcastic training data. Regardless, we still uncovered interesting phenomena within the sarcastic hashtags and emojis.
 
-We're confident that with better sampling methodology and a much larger data set, this algorithm continue to improve on its ability to pick up on sarcastic cues. Adding the attention mechanism discussed by Yin et. al may lead to an even greater improvement than that.
+We're confident that with better sampling methodology and a much larger data set, this algorithm will continue to improve on its ability to pick up on sarcastic cues.  Adding the attention mechanism discussed by Yin et. will likely improve on the methodology even more.
 
 \section{Special Thanks}
 
